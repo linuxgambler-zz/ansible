@@ -1,0 +1,94 @@
+---
+- hosts: elk
+  vars_files:
+      - general_vars.yml
+  become: yes
+  become_user: root
+
+  tasks:
+  - name: Installing required package
+    action: apt update_cache=yes pkg={{item}} state=installed
+    with_items:
+      - gcc
+      - openssl
+      - libssl-dev
+      - libpcre3
+      - libpcre3-dev
+      - build-essential
+      - git
+      - python-pycurl
+      - curl
+      - python-setuptools
+      - libxml2-dev
+
+  - name: add ppa for Oracle (JDK) Installer
+    apt_repository: repo='ppa:webupd8team/java'
+
+  - name: Accept Java 8 license
+    debconf: name='oracle-java8-installer' question='shared/accepted-oracle-license-v1-1' value='true' vtype='select'
+
+  - name: update apt caches
+    apt: update_cache=yes
+
+  - name: install Oracle Java 8 and set as default java
+    apt: name={{item}} state=latest
+    with_items:
+    - oracle-java8-installer
+    - oracle-java8-set-default
+
+  - name: Create installation directory /opt/setups
+    file: path=/opt/setups state=directory
+
+  - name: Download Elasticsearch {{ elastic_version }} debian package to /opt/setups
+    get_url: url=https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{{ elastic_version }}.deb  dest=/opt/setups/
+
+  - name: Install deb package
+    apt: deb=/opt/setups/elasticsearch-{{ elastic_version }}.deb
+
+  - name: Make directory /var/run for elasticsearch
+    file: path=/var/run/elasticsearch state=directory
+
+  - name: Start elasticsearch
+    service: name=elasticsearch state=started enabled=yes
+
+# Setting up nginx
+  - name: Downloading nginx /opt/setups
+    get_url: url=http://nginx.org/download/nginx-{{ nginx_version }}.tar.gz  dest=/opt/setups/
+
+  - name: Extracting nginx
+    unarchive: src=/opt/setups/nginx-{{ nginx_version }}.tar.gz  dest=/opt/setups copy=no
+
+  - name: add nginx user
+    shell: adduser --system --no-create-home --disabled-login --disabled-password --group {{ nginx_user }}
+
+  - name: Compiling nginx
+    shell: chdir=/opt/setups/nginx-{{ nginx_version }}  ./configure --prefix=/opt/nginx --user={{ nginx_user }} --group={{ nginx_user }} --with-debug --with-http_ssl_module --with-http_realip_module --with-pcre-jit --with-http_stub_status_module --with-http_dav_module --without-http_scgi_module --without-http_uwsgi_module --without-http_fastcgi_module  && make -j2 && make install
+
+  - name: Copy nginx config
+    copy:
+      src: /home/sagar/elk/nginx-config/nginx.conf
+      dest: /opt/nginx/conf
+      owner: root
+      group: root
+      mode: 0644
+      backup: yes
+
+  - name: Copy nginx config
+    copy:
+      src: /home/sagar/elk/nginx-config/nginx
+      dest: /etc/init.d/nginx
+      owner: root
+      group: root
+      mode: 0755
+
+  - name: Download Kibana
+    get_url: url=https://artifacts.elastic.co/downloads/kibana/kibana-{{ kibana_version }}-amd64.deb  dest=/opt/setups/
+
+  - name: Install Kibana with deb package
+    apt: deb=/opt/setups/kibana-{{ kibana_version }}-amd64.deb
+
+  - name: Make directory /var/run for kibana
+    file: path=/var/run/kibana state=directory
+
+  - name: Start kibana
+    service: name=kibana state=started enabled=yes

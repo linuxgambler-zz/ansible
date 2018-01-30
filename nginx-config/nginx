@@ -1,0 +1,45 @@
+#!/bin/bash
+FULLPATH=`pwd`
+err_status()
+
+{
+step_1_ex_st=`echo $?`
+
+if test $step_1_ex_st -ne 0
+
+then 
+echo "Nginx " $1 " is unsuccessful. Please contact Adminstrator"
+exit
+
+fi
+}
+
+case "$1" in
+  start)
+	/opt/nginx/sbin/nginx 
+	err_status
+	echo "Starting Nginx"
+        ;;
+  stop)
+	/opt/nginx/sbin/nginx -s stop
+	err_status
+	;;
+  reload)
+	/opt/nginx/sbin/nginx -s reload
+	err_status
+	echo "Nginx reloaded"
+	;;
+  restart)
+	/opt/nginx/sbin/nginx -s stop
+	/opt/nginx/sbin/nginx
+	err_status
+	echo "Nginx restarted"
+	;;
+      *)
+        FULLPATH=/etc/init.d/$PS
+        echo "Usage: $FULLPATH {start|stop|restart|reload"
+        exit 1
+        ;;
+esac
+
+exit 0
